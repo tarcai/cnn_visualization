@@ -5,9 +5,10 @@ Usefull example: https://github.com/fchollet/keras/blob/master/examples/conv_fil
 
 
 ## Script usage:
-usage: vgg16_filter_vis.py [-h] [--layer LAYER]
+usage: vgg16_filter_vis.py [-h] [--layer LAYER] [--noimg]
 
 optional arguments:
   -h, --help     show this help message and exit
   --layer LAYER  Name of the layer to visualize. If value is "all", all of the
                  layers will be visualized.
+  --noimg        Not save output images

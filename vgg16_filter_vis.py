@@ -127,6 +127,7 @@ def get_filter_image_data(number_of_filters):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize. If value is "all", all of the layers will be visualized.')
+    parser.add_argument("--noimg", help = 'Not save output images', action = 'store_false')
     args = parser.parse_args()
     return args
 
@@ -178,9 +179,10 @@ if __name__ == "__main__":
         # this is the placeholder for the input images
         input_img = model.input
 
-        # get
+        # get image data
         kept_filters = get_filter_image_data(number_of_filters)
-        
-        # save filters to image
-        save_image(kept_filters, img_width, img_height)
+
+        if args.noimg:        
+            # save filters to image
+            save_image(kept_filters, img_width, img_height)
            
