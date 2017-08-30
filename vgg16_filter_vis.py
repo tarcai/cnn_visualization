@@ -8,6 +8,7 @@ Usefull example: https://github.com/fchollet/keras/blob/master/examples/conv_fil
 import argparse
 from scipy.misc import imsave
 import numpy as np
+from scipy import ndimage
 from keras.applications import vgg16
 from keras import backend as K
 
@@ -39,7 +40,7 @@ def get_output_layer(model, layer_name):
     return layer_dict[layer_name]
 
 
-def gradient_step(input_img_data, layer, filter_index):
+def calculate_gradient(input_img_data, layer, filter_index):
     # step size for gradient ascent
     step = 1.
 
@@ -62,6 +63,10 @@ def gradient_step(input_img_data, layer, filter_index):
 
     # we run gradient ascent for 20 steps
     for i in range(20):
+        if apply_gaussian:
+            input_img_data[0] = ndimage.gaussian_filter(input_img_data[0], sigma=1)
+        if apply_uniform:
+            input_img_data[0] = ndimage.uniform_filter(input_img_data[0], size=3)
         loss_value, grads_value = iterate([input_img_data])
         input_img_data += grads_value * step
 
@@ -81,7 +86,7 @@ def visualize_filter(filter_index, kept_filters, layer):
         input_img_data = np.random.random((1, img_width, img_height, 3))
     input_img_data = (input_img_data - 0.5) * 20 + 128
 
-    loss_value = gradient_step(input_img_data, layer, filter_index)
+    loss_value = calculate_gradient(input_img_data, layer, filter_index)
 
     # decode the resulting input image
     if loss_value > 0:
@@ -106,7 +111,7 @@ def save_image(kept_filters, img_width, img_height):
                              (img_height + margin) * j: (img_height + margin) * j + img_height, :] = img
     
     # save the result to disk
-    imsave('filters_%s.png' % (layer_name), filters_img)
+    imsave('filters_%s%s.png' % (layer_name, img_name_suffix), filters_img)
     print('Filter images are saved')
 
 def get_filter_image_data(number_of_filters):
@@ -123,11 +128,12 @@ def get_filter_image_data(number_of_filters):
             break
     return kept_filters
     
-
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize. If value is "all", all of the layers will be visualized.')
     parser.add_argument("--noimg", help = 'Not save output images', action = 'store_false')
+    parser.add_argument("--gaussian_filter", help = 'Apply gaussian filter on each iteration', action = 'store_true')
+    parser.add_argument("--uniform_filter", help = 'Apply uniform filter on each iteration', action = 'store_true')
     args = parser.parse_args()
     return args
 
@@ -147,9 +153,9 @@ if __name__ == "__main__":
                   'block4_conv1',
                   'block4_conv2',
                   'block4_conv3',
-                  'block1_conv1',
-                  'block1_conv2',
-                  'block1_conv3']
+                  'block5_conv1',
+                  'block5_conv2',
+                  'block5_conv3']
     
     # get the name of the VGG16 layer
     layer_names = []
@@ -157,7 +163,18 @@ if __name__ == "__main__":
         layer_names = all_layers
     else:
         layer_names = [args.layer]
+        
+    # Set filters
+    apply_gaussian = args.gaussian_filter
+    apply_uniform = args.uniform_filter
 
+    # set image name suffix for filtered running
+    img_name_suffix = ''
+    if apply_gaussian:
+        img_name_suffix = 'gaussian'
+    elif apply_uniform:
+        img_name_suffix = 'uniform'
+        
     # dimensions of the generated pictures for each filter.
     img_width = 128
     img_height = 128
