@@ -9,5 +9,5 @@ usage: vgg16_filter_vis.py [-h] [--layer LAYER]
 
 optional arguments:
   -h, --help     show this help message and exit
-  --layer LAYER  Name of the layer to visualize.
-
+  --layer LAYER  Name of the layer to visualize. If value is "all", all of the
+                 layers will be visualized.

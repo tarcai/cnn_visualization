@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Aug 25 18:24:25 2017
-
 @author: tarcai
 Usefull example: https://github.com/fchollet/keras/blob/master/examples/conv_filter_visualization.py
 """
@@ -41,7 +39,7 @@ def get_output_layer(model, layer_name):
     return layer_dict[layer_name]
 
 
-def gradient_step(input_img_data, layer):
+def gradient_step(input_img_data, layer, filter_index):
     # step size for gradient ascent
     step = 1.
 
@@ -83,7 +81,7 @@ def visualize_filter(filter_index, kept_filters, layer):
         input_img_data = np.random.random((1, img_width, img_height, 3))
     input_img_data = (input_img_data - 0.5) * 20 + 128
 
-    loss_value = gradient_step(input_img_data, layer)
+    loss_value = gradient_step(input_img_data, layer, filter_index)
 
     # decode the resulting input image
     if loss_value > 0:
@@ -111,9 +109,24 @@ def save_image(kept_filters, img_width, img_height):
     imsave('filters_%s.png' % (layer_name), filters_img)
     print('Filter images are saved')
 
+def get_filter_image_data(number_of_filters):
+    # we will only keep the non-zero filters    
+    kept_filters = []
+    good_filters = 0
+    for filter_index in range(number_of_filters):
+        loss_value = visualize_filter(filter_index, kept_filters, layer)
+        if loss_value > 0:
+            good_filters += 1
+        else:
+            print ('Skip this filter.')
+        if good_filters == (n*n):
+            break
+    return kept_filters
+    
+
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize.')
+    parser.add_argument("--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize. If value is "all", all of the layers will be visualized.')
     args = parser.parse_args()
     return args
 
@@ -122,8 +135,27 @@ if __name__ == "__main__":
     args = get_args()
     print(args)
     
+    # list of the all convolition layers in the CNN
+    all_layers = ['block1_conv1',
+                  'block1_conv2',
+                  'block2_conv1',
+                  'block2_conv2',
+                  'block3_conv1',
+                  'block3_conv2',
+                  'block3_conv3',
+                  'block4_conv1',
+                  'block4_conv2',
+                  'block4_conv3',
+                  'block1_conv1',
+                  'block1_conv2',
+                  'block1_conv3']
+    
     # get the name of the VGG16 layer
-    layer_name = args.layer
+    layer_names = []
+    if args.layer == 'all':
+        layer_names = all_layers
+    else:
+        layer_names = [args.layer]
 
     # dimensions of the generated pictures for each filter.
     img_width = 128
@@ -136,27 +168,19 @@ if __name__ == "__main__":
     model = vgg16.VGG16(weights='imagenet', include_top=False)
     print('VGG16 model loaded.')
     
-    # get output layar link
-    layer = get_output_layer(model, layer_name)
+    for layer_name in layer_names:
+        # get output layar link
+        layer = get_output_layer(model, layer_name)
     
-    # get the number of filters in the current layer
-    number_of_filters = layer.get_config()['filters']
+        # get the number of filters in the current layer
+        number_of_filters = layer.get_config()['filters']
         
-    # this is the placeholder for the input images
-    input_img = model.input
+        # this is the placeholder for the input images
+        input_img = model.input
 
-    # we will only keep the non-zero filters    
-    kept_filters = []
-    good_filters = 0
-    for filter_index in range(number_of_filters):
-        loss_value = visualize_filter(filter_index, kept_filters, layer)
-        if loss_value > 0:
-            good_filters += 1
-        else:
-            print ('Skip this filter.')
-        if good_filters == (n*n):
-            break
+        # get
+        kept_filters = get_filter_image_data(number_of_filters)
         
-    # save filters to image
-    save_image(kept_filters, img_width, img_height)
+        # save filters to image
+        save_image(kept_filters, img_width, img_height)
            
