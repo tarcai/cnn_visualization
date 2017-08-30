@@ -4,9 +4,10 @@
 Created on Fri Aug 25 18:24:25 2017
 
 @author: tarcai
+Usefull example: https://github.com/fchollet/keras/blob/master/examples/conv_filter_visualization.py
 """
 
-import sys
+import argparse
 from scipy.misc import imsave
 import numpy as np
 from keras.applications import vgg16
@@ -110,10 +111,19 @@ def save_image(kept_filters, img_width, img_height):
     imsave('filters_%s.png' % (layer_name), filters_img)
     print('Filter images are saved')
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize.')
+    args = parser.parse_args()
+    return args
 
 if __name__ == "__main__":
-    # get the name of the VGG16 layer from first arg
-    layer_name = sys.argv[1]
+    
+    args = get_args()
+    print(args)
+    
+    # get the name of the VGG16 layer
+    layer_name = args.layer
 
     # dimensions of the generated pictures for each filter.
     img_width = 128
