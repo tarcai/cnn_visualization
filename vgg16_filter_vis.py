@@ -46,10 +46,14 @@ def calculate_gradient(input_img_data, layer, filter_index):
     # we build a loss function that maximizes the activation
     # of the nth filter of the layer considered
     layer_output = layer.output
-    if K.image_data_format() == 'channels_first':
-        loss = K.mean(layer_output[:, filter_index, :, :])
+    if layer_name == 'predictions':
+        loss = K.mean(model.output[:, filter_index])
     else:
-        loss = K.mean(layer_output[:, :, :, filter_index])
+        if K.image_data_format() == 'channels_first':
+            loss = K.mean(layer_output[:, filter_index, :, :])
+        else:
+            loss = K.mean(layer_output[:, :, :, filter_index])
+        
 
     # we compute the gradient of the input picture w.r.t. this loss
     grads = K.gradients(loss, input_img)[0]
@@ -61,11 +65,14 @@ def calculate_gradient(input_img_data, layer, filter_index):
     iterate = K.function([input_img], [loss, grads])
 
     # we run gradient ascent for 20 steps
-    for i in range(20):
+    last_loss_value = 0
+    for i in range(200):
         if apply_gaussian:
             input_img_data[0] = ndimage.gaussian_filter(input_img_data[0], sigma=1)
-        if apply_uniform:
+        elif apply_uniform:
             input_img_data[0] = ndimage.uniform_filter(input_img_data[0], size=3)
+        elif apply_l2decay:
+            input_img_data[0] = input_img_data[0]*0.8
         loss_value, grads_value = iterate([input_img_data])
         input_img_data += grads_value * step
 
@@ -73,6 +80,10 @@ def calculate_gradient(input_img_data, layer, filter_index):
         if loss_value <= 0.:
             # some filters get stuck to 0, we can skip them
             break
+        if i > 20 and ((loss_value - last_loss_value) / last_loss_value) < .01:
+            break
+        last_loss_value = loss_value
+
     return loss_value
 
 def visualize_filter(filter_index, kept_filters, layer):
@@ -133,6 +144,7 @@ def get_args():
     parser.add_argument("--noimg", help = 'Not save output images', action = 'store_false')
     parser.add_argument("--gaussian_filter", help = 'Apply gaussian filter on each iteration', action = 'store_true')
     parser.add_argument("--uniform_filter", help = 'Apply uniform filter on each iteration', action = 'store_true')
+    parser.add_argument("--l2_decay", help = 'Apply L2 decay on each iteration', action = 'store_true')
     args = parser.parse_args()
     return args
 
@@ -144,6 +156,7 @@ if __name__ == "__main__":
     # Set filters
     apply_gaussian = args.gaussian_filter
     apply_uniform = args.uniform_filter
+    apply_l2decay = args.l2_decay
 
     # set image name suffix for filtered running
     img_name_suffix = ''
@@ -151,6 +164,8 @@ if __name__ == "__main__":
         img_name_suffix = 'gaussian'
     elif apply_uniform:
         img_name_suffix = 'uniform'
+    elif apply_l2decay:
+        img_name_suffix = 'l2_decay'
     
     # list of the all convolition layers in the CNN
     all_conv_layers = ['block1_conv1', 'block1_conv2',
@@ -172,6 +187,8 @@ if __name__ == "__main__":
     layer_names = []
     if args.layer == 'all_conv':
         layer_names = all_conv_layers
+    elif args.layer == 'predictions':
+        layer_names = [args.layer]
     else:
         layer_names = [args.layer]
         
@@ -185,7 +202,11 @@ if __name__ == "__main__":
         layer = layer_dict[layer_name]
     
         # get the number of filters in the current layer
-        number_of_filters = layer.get_config()['filters']
+        number_of_filters = 0
+        if layer_name == 'predictions':
+            number_of_filters = 1000
+        else:
+            number_of_filters = layer.get_config()['filters']
         
         # this is the placeholder for the input images
         input_img = model.input
