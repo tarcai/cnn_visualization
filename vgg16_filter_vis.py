@@ -34,11 +34,10 @@ def deprocess_image(x):
     x = np.clip(x, 0, 255).astype('uint8')
     return x
 
-def get_output_layer(model, layer_name):
+def get_layer_dict(model):
     # get the symbolic outputs of each "key" layer (we gave them unique names).
     layer_dict = dict([(layer.name, layer) for layer in model.layers[1:]])
-    return layer_dict[layer_name]
-
+    return layer_dict
 
 def calculate_gradient(input_img_data, layer, filter_index):
     # step size for gradient ascent
@@ -130,7 +129,7 @@ def get_filter_image_data(number_of_filters):
     
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize. If value is "all", all of the layers will be visualized.')
+    parser.add_argument("--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize. If value is "all_conv", all of the convolution layers will be visualized.')
     parser.add_argument("--noimg", help = 'Not save output images', action = 'store_false')
     parser.add_argument("--gaussian_filter", help = 'Apply gaussian filter on each iteration', action = 'store_true')
     parser.add_argument("--uniform_filter", help = 'Apply uniform filter on each iteration', action = 'store_true')
@@ -141,28 +140,6 @@ if __name__ == "__main__":
     
     args = get_args()
     print(args)
-    
-    # list of the all convolition layers in the CNN
-    all_layers = ['block1_conv1',
-                  'block1_conv2',
-                  'block2_conv1',
-                  'block2_conv2',
-                  'block3_conv1',
-                  'block3_conv2',
-                  'block3_conv3',
-                  'block4_conv1',
-                  'block4_conv2',
-                  'block4_conv3',
-                  'block5_conv1',
-                  'block5_conv2',
-                  'block5_conv3']
-    
-    # get the name of the VGG16 layer
-    layer_names = []
-    if args.layer == 'all':
-        layer_names = all_layers
-    else:
-        layer_names = [args.layer]
         
     # Set filters
     apply_gaussian = args.gaussian_filter
@@ -174,21 +151,38 @@ if __name__ == "__main__":
         img_name_suffix = 'gaussian'
     elif apply_uniform:
         img_name_suffix = 'uniform'
-        
-    # dimensions of the generated pictures for each filter.
-    img_width = 128
-    img_height = 128
-
+    
+    # list of the all convolition layers in the CNN
+    all_conv_layers = ['block1_conv1', 'block1_conv2',
+                       'block2_conv1', 'block2_conv2',
+                       'block3_conv1', 'block3_conv2', 'block3_conv3',
+                       'block4_conv1', 'block4_conv2', 'block4_conv3',
+                       'block5_conv1', 'block5_conv2', 'block5_conv3']
+    
     # we will stich the filters on an n x n grid.
     n = 3
 
     # load VGG16 network with ImageNet weights
-    model = vgg16.VGG16(weights='imagenet', include_top=False)
-    print('VGG16 model loaded.')
+    model = vgg16.VGG16(weights='imagenet', include_top=True)
+    print('VGG16 model loaded.')    
+    layer_dict = get_layer_dict(model)
+    all_layers = layer_dict.keys()
+
+    # get the name of the VGG16 layer
+    layer_names = []
+    if args.layer == 'all_conv':
+        layer_names = all_conv_layers
+    else:
+        layer_names = [args.layer]
+        
+    
+    # dimensions of the generated pictures for each filter.
+    img_width = model.layers[0].input_shape[1]
+    img_height = model.layers[0].input_shape[2]
     
     for layer_name in layer_names:
         # get output layar link
-        layer = get_output_layer(model, layer_name)
+        layer = layer_dict[layer_name]
     
         # get the number of filters in the current layer
         number_of_filters = layer.get_config()['filters']
