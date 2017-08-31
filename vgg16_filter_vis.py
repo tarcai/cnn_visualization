@@ -14,7 +14,7 @@ from keras import backend as K
 
 # utility function to normalize a tensor by its L2 norm
 def normalize(x):
-    return x / (K.sqrt(K.mean(K.square(x))) + 1e-5)
+    return x / (K.sqrt(K.mean(K.square(x))))
 
 # util function to convert a tensor into a valid image
 def deprocess_image(x):
@@ -196,4 +196,4 @@ if __name__ == "__main__":
         if args.noimg:        
             # save filters to image
             save_image(kept_filters, img_width, img_height)
-           
+            
