@@ -80,7 +80,7 @@ def calculate_gradient(input_img_data, layer, filter_index):
         if loss_value <= 0.:
             # some filters get stuck to 0, we can skip them
             break
-        if i > 20 and ((loss_value - last_loss_value) / last_loss_value) < .01:
+        if i > 20 and ((loss_value - last_loss_value) / last_loss_value) < .01 and loss_value > .95:
             break
         last_loss_value = loss_value
 
