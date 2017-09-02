@@ -67,11 +67,11 @@ def calculate_gradient(input_img_data, layer, filter_index):
     # we run gradient ascent for 20 steps
     last_loss_value = 0
     for i in range(200):
-        if apply_gaussian:
+        if regularization == 'gaussian':
             input_img_data[0] = ndimage.gaussian_filter(input_img_data[0], sigma=1)
-        elif apply_uniform:
+        elif regularization == 'uniform':
             input_img_data[0] = ndimage.uniform_filter(input_img_data[0], size=3)
-        elif apply_l2decay:
+        elif regularization == 'l2':
             input_img_data[0] = input_img_data[0]*0.8
         loss_value, grads_value = iterate([input_img_data])
         input_img_data += grads_value * step
@@ -140,11 +140,9 @@ def get_filter_image_data(number_of_filters):
     
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize. If value is "all_conv", all of the convolution layers will be visualized.')
+    parser.add_argument("-l", "--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize. If value is "all_conv", all of the convolution layers will be visualized.')
     parser.add_argument("--noimg", help = 'Not save output images', action = 'store_false')
-    parser.add_argument("--gaussian_filter", help = 'Apply gaussian filter on each iteration', action = 'store_true')
-    parser.add_argument("--uniform_filter", help = 'Apply uniform filter on each iteration', action = 'store_true')
-    parser.add_argument("--l2_decay", help = 'Apply L2 decay on each iteration', action = 'store_true')
+    parser.add_argument("-r", "--regularization", default = 'none', choices=['none', 'l2', 'gaussian', 'uniform'],  help = 'Apply regularization on each iteration')
     args = parser.parse_args()
     return args
 
@@ -154,19 +152,16 @@ if __name__ == "__main__":
     print(args)
         
     # Set filters
-    apply_gaussian = args.gaussian_filter
-    apply_uniform = args.uniform_filter
-    apply_l2decay = args.l2_decay
+    #apply_gaussian = args.gaussian_filter
+    #apply_uniform = args.uniform_filter
+    #apply_l2decay = args.l2_decay
+    regularization = args.regularization
 
     # set image name suffix for filtered running
     img_name_suffix = ''
-    if apply_gaussian:
-        img_name_suffix = 'gaussian'
-    elif apply_uniform:
-        img_name_suffix = 'uniform'
-    elif apply_l2decay:
-        img_name_suffix = 'l2_decay'
-    
+    if regularization != 'none':
+        img_name_suffix = '_' + args.regularization
+            
     # list of the all convolition layers in the CNN
     all_conv_layers = ['block1_conv1', 'block1_conv2',
                        'block2_conv1', 'block2_conv2',
