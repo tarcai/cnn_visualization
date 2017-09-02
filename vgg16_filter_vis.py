@@ -39,22 +39,20 @@ def get_layer_dict(model):
     layer_dict = dict([(layer.name, layer) for layer in model.layers[1:]])
     return layer_dict
 
-def calculate_gradient(input_img_data, layer, filter_index):
+def calculate_gradient(input_img_data, layer, node_index):
     # step size for gradient ascent
     step = 1.
 
     # we build a loss function that maximizes the activation
-    # of the nth filter of the layer considered
-    layer_output = layer.output
-    if layer_name == 'predictions':
-        loss = K.mean(model.output[:, filter_index])
+    # of the nth node of the layer considered
+    if layer.name in ['predictions', 'fc1', 'fc2']:
+        loss = K.mean(layer.output[:, node_index])
     else:
         if K.image_data_format() == 'channels_first':
-            loss = K.mean(layer_output[:, filter_index, :, :])
+            loss = K.mean(layer.output[:, node_index, :, :])
         else:
-            loss = K.mean(layer_output[:, :, :, filter_index])
+            loss = K.mean(layer.output[:, :, :, node_index])
         
-
     # we compute the gradient of the input picture w.r.t. this loss
     grads = K.gradients(loss, input_img)[0]
 
@@ -76,7 +74,7 @@ def calculate_gradient(input_img_data, layer, filter_index):
         loss_value, grads_value = iterate([input_img_data])
         input_img_data += grads_value * step
 
-        print('Step %d, loss value:' % i, loss_value)
+        print('\rStep %d, loss value: %.3f' % (i, loss_value),  end='')
         if loss_value <= 0.:
             # some filters get stuck to 0, we can skip them
             break
@@ -86,51 +84,66 @@ def calculate_gradient(input_img_data, layer, filter_index):
 
     return loss_value
 
-def visualize_filter(filter_index, kept_filters, layer):
-    print('Processing filter %d' % filter_index)
+def visualize_node(node_index, layer, img_shape, img_name_suffix):
+    print('Processing node %d' % node_index)
 
     # we start from a gray image with some random noise
     if K.image_data_format() == 'channels_first':
-        input_img_data = np.random.random((1, 3, img_width, img_height))
+        input_img_data = np.random.random((1, 3, img_shape[0], img_shape[1]))
     else:
-        input_img_data = np.random.random((1, img_width, img_height, 3))
+        input_img_data = np.random.random((1, img_shape[0], img_shape[1], 3))
     input_img_data = (input_img_data - 0.5) * 20 + 128
 
-    loss_value = calculate_gradient(input_img_data, layer, filter_index)
+    loss_value = calculate_gradient(input_img_data, layer, node_index)
 
     # decode the resulting input image
     if loss_value > 0:
         img = deprocess_image(input_img_data[0])
-        kept_filters.append((img, loss_value))
         if not args.noimg:        
-            save_image(img, filter_index)
+            save_image(img, node_index, layer.name, img_name_suffix)
 
     return loss_value
 
-def save_image(img, filter_index):
+def save_image(img, node_index, layer_name, img_name_suffix):
         # save the result to disk
-        imsave('filter%d_%s%s.png' % (filter_index, layer_name, img_name_suffix), img)
-        print('Filter image saved')
+        imsave('%s_%d%s.png' % (layer_name, node_index, img_name_suffix), img)
+        print('\nImage saved')
 
-def get_filter_image_data(number_of_filters):
-    # we will only keep the non-zero filters    
-    kept_filters = []
-    good_filters = 0
-    for filter_index in range(number_of_filters):
-        loss_value = visualize_filter(filter_index, kept_filters, layer)
+def visualize_n_nodes(number_of_nodes, layer, img_shape, img_name_suffix):
+    # we will only keep the non-zero nodes    
+    good_nodes = 0
+    for node_index in range(number_of_nodes):
+        loss_value = visualize_node(node_index, layer, img_shape, img_name_suffix)
         if loss_value > 0:
-            good_filters += 1
+            good_nodes += 1
         else:
-            print ('Skip this filter.')
-        if good_filters == (n):
+            print ('\nSkip this node.')
+        if good_nodes == n:
             break
-    return kept_filters
     
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-l", "--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize. If value is "all_conv", all of the convolution layers will be visualized.')
-    parser.add_argument("--noimg", help = 'Not save output images', action = 'store_true')
-    parser.add_argument("-r", "--regularization", default = 'none', choices=['none', 'l2', 'gaussian', 'uniform'],  help = 'Apply regularization on each iteration')
+    parser.add_argument("-l", 
+                        "--layer", 
+                        type = str, 
+                        default = 'block1_conv1', 
+                        help = '''Name of the layer to visualize. If value is 
+                                  "all_conv" all of the convolution layers will
+                                  be visualized, if "all" all of the layers''')
+    parser.add_argument("--noimg", 
+                        action = 'store_true',
+                        help = 'Not save output images')
+    parser.add_argument("-r", 
+                        "--regularization", 
+                        default = 'none', 
+                        choices=['none', 'l2', 'gaussian', 'uniform'],  
+                        help = 'Apply regularization on each iteration.')
+    parser.add_argument("-n", 
+                        "--nr_of_outputs",
+                        type = int,
+                        default = 1, 
+                        help = 'Number of output nodes to visualize in a layer.')
+
     args = parser.parse_args()
     return args
 
@@ -142,7 +155,7 @@ if __name__ == "__main__":
     # Set regularization
     regularization = args.regularization
 
-    # set image name suffix for filtered running
+    # set image name suffix for regularization
     img_name_suffix = ''
     if regularization != 'none':
         img_name_suffix = '_' + args.regularization
@@ -153,9 +166,10 @@ if __name__ == "__main__":
                        'block3_conv1', 'block3_conv2', 'block3_conv3',
                        'block4_conv1', 'block4_conv2', 'block4_conv3',
                        'block5_conv1', 'block5_conv2', 'block5_conv3']
+    all_layers = all_conv_layers + ['fc1', 'fc2', 'predictions']
     
-    # we will save n filters.
-    n = 9
+    # we will visualize and save n images.
+    n = args.nr_of_outputs
 
     # load VGG16 network with ImageNet weights
     model = vgg16.VGG16(weights='imagenet', include_top=True)
@@ -167,30 +181,29 @@ if __name__ == "__main__":
     layer_names = []
     if args.layer == 'all_conv':
         layer_names = all_conv_layers
-    elif args.layer == 'predictions':
-        layer_names = [args.layer]
+    elif args.layer == 'all':
+        layer_names = all_layers
     else:
         layer_names = [args.layer]
         
     
-    # dimensions of the generated pictures for each filter.
-    img_width = model.layers[0].input_shape[1]
-    img_height = model.layers[0].input_shape[2]
+    # dimensions of the generated pictures.
+    img_shape = model.layers[0].input_shape[1:3]
     
     for layer_name in layer_names:
         # get output layar link
         layer = layer_dict[layer_name]
     
-        # get the number of filters in the current layer
-        number_of_filters = 0
-        if layer_name == 'predictions':
-            number_of_filters = 1000
+        # get the number of nodes in the current layer
+        number_of_nodes = 0
+        if layer_name in ['predictions', 'fc1', 'fc2']:
+            number_of_nodes = layer.units
         else:
-            number_of_filters = layer.get_config()['filters']
+            number_of_nodes = layer.filters
         
         # this is the placeholder for the input images
         input_img = model.input
 
         # get image data
-        kept_filters = get_filter_image_data(number_of_filters)
+        visualize_n_nodes(number_of_nodes, layer, img_shape, img_name_suffix)
             
