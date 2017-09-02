@@ -102,27 +102,15 @@ def visualize_filter(filter_index, kept_filters, layer):
     if loss_value > 0:
         img = deprocess_image(input_img_data[0])
         kept_filters.append((img, loss_value))
+        if not args.noimg:        
+            save_image(img, filter_index)
 
     return loss_value
 
-def save_image(kept_filters, img_width, img_height):
-    # build a black picture with enough space for
-    # our n x n filters of size 128 x 128, with a 5px margin in between
-    margin = 5
-    width = n * img_width + (n - 1) * margin
-    height = n * img_height + (n - 1) * margin
-    filters_img = np.zeros((width, height, 3))
-    
-    # fill the picture with our saved filters
-    for i in range(n):
-        for j in range(n):
-            img, loss = kept_filters[i * n + j]
-            filters_img[(img_width + margin) * i: (img_width + margin) * i + img_width,
-                             (img_height + margin) * j: (img_height + margin) * j + img_height, :] = img
-    
-    # save the result to disk
-    imsave('filters_%s%s.png' % (layer_name, img_name_suffix), filters_img)
-    print('Filter images are saved')
+def save_image(img, filter_index):
+        # save the result to disk
+        imsave('filter%d_%s%s.png' % (filter_index, layer_name, img_name_suffix), img)
+        print('Filter image saved')
 
 def get_filter_image_data(number_of_filters):
     # we will only keep the non-zero filters    
@@ -134,14 +122,14 @@ def get_filter_image_data(number_of_filters):
             good_filters += 1
         else:
             print ('Skip this filter.')
-        if good_filters == (n*n):
+        if good_filters == (n):
             break
     return kept_filters
     
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-l", "--layer", type = str, default = 'block1_conv1', help = 'Name of the layer to visualize. If value is "all_conv", all of the convolution layers will be visualized.')
-    parser.add_argument("--noimg", help = 'Not save output images', action = 'store_false')
+    parser.add_argument("--noimg", help = 'Not save output images', action = 'store_true')
     parser.add_argument("-r", "--regularization", default = 'none', choices=['none', 'l2', 'gaussian', 'uniform'],  help = 'Apply regularization on each iteration')
     args = parser.parse_args()
     return args
@@ -151,10 +139,7 @@ if __name__ == "__main__":
     args = get_args()
     print(args)
         
-    # Set filters
-    #apply_gaussian = args.gaussian_filter
-    #apply_uniform = args.uniform_filter
-    #apply_l2decay = args.l2_decay
+    # Set regularization
     regularization = args.regularization
 
     # set image name suffix for filtered running
@@ -169,8 +154,8 @@ if __name__ == "__main__":
                        'block4_conv1', 'block4_conv2', 'block4_conv3',
                        'block5_conv1', 'block5_conv2', 'block5_conv3']
     
-    # we will stich the filters on an n x n grid.
-    n = 3
+    # we will save n filters.
+    n = 9
 
     # load VGG16 network with ImageNet weights
     model = vgg16.VGG16(weights='imagenet', include_top=True)
@@ -208,8 +193,4 @@ if __name__ == "__main__":
 
         # get image data
         kept_filters = get_filter_image_data(number_of_filters)
-
-        if args.noimg:        
-            # save filters to image
-            save_image(kept_filters, img_width, img_height)
             
