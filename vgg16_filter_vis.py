@@ -36,10 +36,16 @@ def deprocess_image(x):
     x = np.clip(x, 0, 255).astype('uint8')
     return x
 
-def plot_loss_update(y):
+def plot_loss_update(y, filename='plot.png', save=False):
     plt.ion()
+    plt.clf()
+    plt.xlabel('iteration')
+    plt.ylabel('loss')
+    plt.title(filename)
     plt.plot(y, '-b')
     plt.pause(0.05)
+    if save:
+        plt.savefig(filename)
             
 
 def get_layer_dict(model):
@@ -90,6 +96,8 @@ def calculate_gradient(input_img_data, layer, node_index):
             # some filters get stuck to 0, we can skip them
             break
         if i > 20 and ((loss_value - last_loss_value) / last_loss_value) < .01 and loss_value > .95:
+            filename = layer.name + '_' + str(node_index) + '_' + regularization + '_loss.png'
+            plot_loss_update(loss_values, filename, save=True)
             break
         last_loss_value = loss_value
         
