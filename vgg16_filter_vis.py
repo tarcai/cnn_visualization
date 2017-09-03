@@ -9,6 +9,7 @@ import argparse
 from scipy.misc import imsave
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from scipy import ndimage
 from keras.applications import vgg16
 from keras import backend as K
@@ -34,6 +35,12 @@ def deprocess_image(x):
         x = x.transpose((1, 2, 0))
     x = np.clip(x, 0, 255).astype('uint8')
     return x
+
+def plot_loss_update(y):
+    plt.ion()
+    plt.plot(y, '-b')
+    plt.pause(0.05)
+            
 
 def get_layer_dict(model):
     # get the symbolic outputs of each "key" layer (we gave them unique names).
@@ -76,7 +83,8 @@ def calculate_gradient(input_img_data, layer, node_index):
         loss_value, grads_value = iterate([input_img_data])
         loss_values.append(loss_value)
         input_img_data += grads_value * step
-
+        if args.plot:
+            plot_loss_update(loss_values)
         print('\rStep %d, loss value: %.3f' % (i, loss_value),  end='')
         if loss_value <= 0.:
             # some filters get stuck to 0, we can skip them
@@ -159,6 +167,9 @@ def get_args():
     parser.add_argument("-L", "--logging", 
                         action = 'store_true',
                         help = 'Save losses to file.')
+    parser.add_argument("-p", "--plot", 
+                        action = 'store_true',
+                        help = 'Plot losses during gradient iterations.')
 
     args = parser.parse_args()
     return args
