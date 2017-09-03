@@ -8,6 +8,7 @@ Usefull example: https://github.com/fchollet/keras/blob/master/examples/conv_fil
 import argparse
 from scipy.misc import imsave
 import numpy as np
+import pandas as pd
 from scipy import ndimage
 from keras.applications import vgg16
 from keras import backend as K
@@ -64,6 +65,7 @@ def calculate_gradient(input_img_data, layer, node_index):
 
     # we run gradient ascent for 20 steps
     last_loss_value = 0
+    loss_values = []
     for i in range(200):
         if regularization == 'gaussian':
             input_img_data[0] = ndimage.gaussian_filter(input_img_data[0], sigma=1)
@@ -72,6 +74,7 @@ def calculate_gradient(input_img_data, layer, node_index):
         elif regularization == 'l2':
             input_img_data[0] = input_img_data[0]*0.8
         loss_value, grads_value = iterate([input_img_data])
+        loss_values.append(loss_value)
         input_img_data += grads_value * step
 
         print('\rStep %d, loss value: %.3f' % (i, loss_value),  end='')
@@ -81,10 +84,11 @@ def calculate_gradient(input_img_data, layer, node_index):
         if i > 20 and ((loss_value - last_loss_value) / last_loss_value) < .01 and loss_value > .95:
             break
         last_loss_value = loss_value
+        
+    print('')
+    return loss_values
 
-    return loss_value
-
-def visualize_node(node_index, layer, img_shape, img_name_suffix):
+def visualize_node(node_index, layer, img_shape, file_name_suffix):
     print('Processing node %d' % node_index)
 
     # we start from a gray image with some random noise
@@ -94,33 +98,42 @@ def visualize_node(node_index, layer, img_shape, img_name_suffix):
         input_img_data = np.random.random((1, img_shape[0], img_shape[1], 3))
     input_img_data = (input_img_data - 0.5) * 20 + 128
 
-    loss_value = calculate_gradient(input_img_data, layer, node_index)
+    loss_values = calculate_gradient(input_img_data, layer, node_index)
 
     # decode the resulting input image
-    if loss_value > 0:
+    if loss_values[-1] > 0:
         img = deprocess_image(input_img_data[0])
         if not args.noimg:        
-            save_image(img, node_index, layer.name, img_name_suffix)
+            save_image(img, node_index, layer.name, file_name_suffix)
 
-    return loss_value
+    return loss_values
 
-def save_image(img, node_index, layer_name, img_name_suffix):
-        # save the result to disk
-        imsave('%s_%d%s.png' % (layer_name, node_index, img_name_suffix), img)
-        print('\nImage saved')
+def save_image(img, node_index, layer_name, file_name_suffix):
+        # save the result to file
+        imsave('%s_%d%s.png' % (layer_name, node_index, file_name_suffix), img)
+        print('Image saved')
 
-def visualize_n_nodes(number_of_nodes, layer, img_shape, img_name_suffix):
+def visualize_n_nodes(number_of_nodes, layer, img_shape, file_name_suffix, logging):
     # we will only keep the non-zero nodes    
     good_nodes = 0
     for node_index in range(number_of_nodes):
-        loss_value = visualize_node(node_index, layer, img_shape, img_name_suffix)
-        if loss_value > 0:
+        filename = layer.name + '_' + str(node_index) + file_name_suffix + '.loss.csv'
+        loss_values = visualize_node(node_index, layer, img_shape, file_name_suffix)
+        if loss_values[-1] > 0:
             good_nodes += 1
+            if logging:
+                write_losses_to_csv(loss_values, filename)
         else:
-            print ('\nSkip this node.')
+            print ('Skip this node.')
+
         if good_nodes == n:
             break
     
+def write_losses_to_csv(losses, filename):
+    loss_dataframe = pd.DataFrame(losses, columns=['loss'])
+    loss_dataframe.head()
+    loss_dataframe.to_csv(filename, index=True, index_label='iteration')
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-l", 
@@ -129,7 +142,7 @@ def get_args():
                         default = 'block1_conv1', 
                         help = '''Name of the layer to visualize. If value is 
                                   "all_conv" all of the convolution layers will
-                                  be visualized, if "all" all of the layers''')
+                                  be visualized, if "all" all of the layers.''')
     parser.add_argument("--noimg", 
                         action = 'store_true',
                         help = 'Not save output images')
@@ -143,6 +156,9 @@ def get_args():
                         type = int,
                         default = 1, 
                         help = 'Number of output nodes to visualize in a layer.')
+    parser.add_argument("-L", "--logging", 
+                        action = 'store_true',
+                        help = 'Save losses to file.')
 
     args = parser.parse_args()
     return args
@@ -156,9 +172,9 @@ if __name__ == "__main__":
     regularization = args.regularization
 
     # set image name suffix for regularization
-    img_name_suffix = ''
+    file_name_suffix = ''
     if regularization != 'none':
-        img_name_suffix = '_' + args.regularization
+        file_name_suffix = '_' + args.regularization
             
     # list of the all convolition layers in the CNN
     all_conv_layers = ['block1_conv1', 'block1_conv2',
@@ -170,6 +186,9 @@ if __name__ == "__main__":
     
     # we will visualize and save n images.
     n = args.nr_of_outputs
+
+    # logging
+    logging = args.logging
 
     # load VGG16 network with ImageNet weights
     model = vgg16.VGG16(weights='imagenet', include_top=True)
@@ -205,5 +224,5 @@ if __name__ == "__main__":
         input_img = model.input
 
         # get image data
-        visualize_n_nodes(number_of_nodes, layer, img_shape, img_name_suffix)
+        visualize_n_nodes(number_of_nodes, layer, img_shape, file_name_suffix, logging)
             
